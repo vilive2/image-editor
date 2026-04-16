@@ -6,6 +6,7 @@ let image = new Image();
 
 let isDragging = false;
 let startX, startY, endX, endY;
+let selectionSnapshot = null;
 
 // ---------------- LOAD IMAGE FROM FILE ----------------
 fileInput.onchange = e => {
@@ -38,6 +39,7 @@ function loadImage(src) {
         canvas.width = image.width;
         canvas.height = image.height;
         ctx.drawImage(image, 0, 0);
+        clearSelectionState();
     };
     image.src = src; // No CORS = Always SAFE now
 }
@@ -45,9 +47,11 @@ function loadImage(src) {
 // ---------------- CROP TOOL ----------------
 canvas.addEventListener("mousedown", e => {
     isDragging = true;
+    restoreCanvasSnapshot();
     const rect = canvas.getBoundingClientRect();
     startX = e.clientX - rect.left;
     startY = e.clientY - rect.top;
+    selectionSnapshot = getCanvasSnapshot();
 });
 
 canvas.addEventListener("mousemove", e => {
@@ -57,17 +61,41 @@ canvas.addEventListener("mousemove", e => {
     endX = e.clientX - rect.left;
     endY = e.clientY - rect.top;
 
-    ctx.drawImage(image, 0, 0);
+    restoreCanvasSnapshot();
     ctx.strokeStyle = "red";
     ctx.lineWidth = 2;
     ctx.strokeRect(startX, startY, endX - startX, endY - startY);
 });
 
-canvas.addEventListener("mouseup", () => isDragging = false);
+canvas.addEventListener("mouseup", () => {
+    isDragging = false;
+});
+
+function getCanvasSnapshot() {
+    if (!canvas.width || !canvas.height) return null;
+
+    return ctx.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+function restoreCanvasSnapshot() {
+    if (!selectionSnapshot) return;
+
+    ctx.putImageData(selectionSnapshot, 0, 0);
+}
+
+function clearSelectionState() {
+    selectionSnapshot = null;
+    startX = null;
+    startY = null;
+    endX = null;
+    endY = null;
+}
 
 // ---------------- APPLY CROP ----------------
 document.getElementById("cropBtn").onclick = () => {
     if (startX == null || endX == null) return;
+
+    restoreCanvasSnapshot();
 
     const width = endX - startX;
     const height = endY - startY;
@@ -79,6 +107,7 @@ document.getElementById("cropBtn").onclick = () => {
 
     ctx.putImageData(cropped, 0, 0);
 
+    clearSelectionState();
     image.src = canvas.toDataURL(); // Now always safe
 };
 
